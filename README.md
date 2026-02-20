@@ -1,12 +1,13 @@
 # api2cli
 
-A Claude Code skill that generates working Node.js CLIs from any API. Point it at API docs, a live URL, or a [peek-api](https://github.com/alexknowshtml/peek-api) capture and get a dual-mode Commander.js CLI that works for both humans and AI agents.
+A Claude Code skill that turns any API into a working CLI, then wraps that CLI in a skill. Point it at API docs, a live URL, or a [peek-api](https://github.com/alexknowshtml/peek-api) capture and get a dual-mode Commander.js CLI plus a ready-to-use Claude Code skill -- so any future Claude session can pick it up and use it without reading the code.
 
 ## What It Does
 
 1. **Discovers endpoints** from API docs pages, live probing, or peek-api network captures
 2. **Builds an endpoint catalog** with auth, pagination, and rate limit info
 3. **Generates a CLI** with one subcommand per endpoint, a full-featured API client, and dual-mode output (human-readable in terminal, JSON envelope when piped)
+4. **Generates a skill** -- a SKILL.md that teaches Claude how to use the CLI, with commands, examples, and common workflows
 
 ## Install
 
@@ -36,15 +37,22 @@ Claude will:
 3. Show you the endpoint catalog for review
 4. Generate the CLI -- you choose: scaffold into your project or standalone
 5. Test that it works
+6. Generate a skill folder so Claude can use the CLI in future sessions
 
 ## What Gets Generated
 
-A Commander.js CLI with:
+**A CLI** -- Commander.js with:
 - **Dual-mode output** -- human-readable in terminal, JSON with `next_actions` when piped
 - **Self-documenting root** -- run with no args to see all commands
 - **Full API client** -- auth, pagination, retry with backoff, rate limiting, caching
 - **One subcommand per endpoint** -- `mycli customers list`, `mycli customers get <id>`
 - **Error handling** -- agent-friendly errors with `fix` suggestions
+
+**A skill** -- a `.claude/skills/{service}/SKILL.md` that:
+- Lists all available commands with examples
+- Includes common multi-step workflows
+- Has the right trigger phrases so Claude auto-activates when relevant
+- Documents auth setup and agent usage
 
 ## Discovery Methods
 

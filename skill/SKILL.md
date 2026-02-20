@@ -1,11 +1,11 @@
 ---
 name: api2cli
-description: Generate a working CLI from any API. Point it at API docs, a live URL, or a peek-api capture and get a dual-mode Commander.js CLI (human + agent output). Use when user wants to wrap an API in a CLI, generate a CLI from API docs, turn an API into a command-line tool, or scaffold a CLI from discovered endpoints.
+description: Generate a working CLI from any API, then wrap it in a Claude Code skill. Point it at API docs, a live URL, or a peek-api capture and get a dual-mode Commander.js CLI (human + agent output) plus a ready-to-use skill folder. Use when user wants to wrap an API in a CLI, generate a CLI from API docs, turn an API into a command-line tool, scaffold a CLI from discovered endpoints, or create a skill for an API.
 ---
 
 # api2cli
 
-Generate a working Node.js CLI from any API. Discovers endpoints, then scaffolds a dual-mode Commander.js CLI with a full-featured API client.
+Generate a working Node.js CLI from any API, then wrap it in a Claude Code skill. Discovers endpoints, scaffolds a dual-mode Commander.js CLI with a full-featured API client, and creates a skill folder so Claude knows how to use it.
 
 ## Workflow
 
@@ -14,6 +14,7 @@ Generate a working Node.js CLI from any API. Discovers endpoints, then scaffolds
 3. **Build endpoint catalog** -- normalize all discovered endpoints into a standard format
 4. **Generate CLI** -- scaffold Commander.js CLI from the catalog
 5. **User chooses destination** -- scaffold into current project or create standalone project
+6. **Generate skill** -- create a SKILL.md that teaches Claude how to use the generated CLI
 
 ## Step 1: Identify the API
 
@@ -225,24 +226,106 @@ function respondError(command: string, message: string, code: string, fix: strin
 - `tsconfig.json` for TypeScript
 - `.env.example` with the required env var
 
-## Step 5: Post-Generation
+## Step 5: Verify
 
-After generating, do the following:
+After generating the CLI:
 
-1. **Verify the CLI runs:** Execute with no args, confirm the self-documenting root works
+1. **Verify it runs:** Execute with no args, confirm the self-documenting root works
 2. **Test one endpoint:** Pick a simple GET endpoint, run it, verify output
-3. **Tell the user what to do next:**
+3. **Move on to Step 6** to wrap the CLI in a skill
+
+## Step 6: Generate Skill
+
+Create a Claude Code skill folder that teaches Claude how to use the generated CLI. This is the final step -- it turns the CLI into something any Claude session can pick up and use without reading the code.
+
+### Skill Structure
 
 ```
-CLI generated at scripts/{service}.ts
+.claude/skills/{service}/
+  SKILL.md                    # Skill instructions
+```
 
-To use it:
-  npx tsx scripts/{service}.ts                    # See all commands
-  npx tsx scripts/{service}.ts customers list     # List customers
-  {SERVICE}_API_KEY=xxx npx tsx scripts/{service}.ts customers get abc123
+### SKILL.md Template
 
-For agent consumption (pipe to get JSON):
-  npx tsx scripts/{service}.ts customers list | cat
+Generate a SKILL.md with this structure:
+
+```markdown
+---
+name: {service}
+description: Interact with the {Service} API via CLI. Use when user wants to
+  {list of actions based on discovered resources, e.g., "list customers,
+  create invoices, check order status"}. Commands: {service} {resource} {action}.
+---
+
+# {Service} CLI
+
+CLI wrapper for the {Service} API.
+
+## Setup
+
+Set the `{SERVICE_ENV_VAR}` environment variable:
+\`\`\`bash
+export {SERVICE_ENV_VAR}=your-api-key-here
+\`\`\`
+
+## Commands
+
+{For each resource group, list commands with examples:}
+
+### {Resource}
+
+\`\`\`bash
+# List {resources}
+npx tsx {path/to/cli}.ts {resource} list
+
+# Get a specific {resource}
+npx tsx {path/to/cli}.ts {resource} get <id>
+
+# Create a {resource}
+npx tsx {path/to/cli}.ts {resource} create --field value
+\`\`\`
+
+## Common Workflows
+
+{Generate 2-3 practical workflows combining multiple commands:}
+
+### Example: {Workflow name}
+\`\`\`bash
+# Step 1: Find the customer
+npx tsx {path/to/cli}.ts customers list --status=active
+
+# Step 2: Get their invoices
+npx tsx {path/to/cli}.ts invoices list --customer-id=abc123
+\`\`\`
+
+## Agent Usage
+
+When piped, all commands return JSON with `next_actions`:
+\`\`\`bash
+npx tsx {path/to/cli}.ts {resource} list | cat
+\`\`\`
+```
+
+### Key Rules for Skill Generation
+
+1. **Description is critical** -- include specific trigger phrases and list the actions the CLI supports. This is what Claude reads to decide when to use the skill.
+2. **Include real command examples** -- use the actual CLI path and real subcommand names from the generated CLI.
+3. **Generate practical workflows** -- combine multiple commands into realistic multi-step scenarios based on how the API's resources relate to each other.
+4. **Keep it lean** -- the skill should be a quick reference, not a restatement of `--help`. Focus on what Claude needs to know that it can't infer.
+
+### Tell the User
+
+After generating both the CLI and the skill:
+
+```
+CLI generated at {cli_path}
+Skill generated at .claude/skills/{service}/SKILL.md
+
+To use the CLI directly:
+  npx tsx {cli_path}                           # See all commands
+  npx tsx {cli_path} customers list            # List customers
+
+Claude will now automatically use this skill when you ask about {service}.
 ```
 
 ## Reference Files
