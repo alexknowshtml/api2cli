@@ -66,6 +66,12 @@ skill/
     commander-patterns.md                 # Commander.js advanced patterns
 ```
 
+## Credits
+
+The agent-first CLI patterns (JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, `fix` suggestions on errors) are based on [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md).
+
+api2cli adds audience routing (generate for humans, agents, or auto-detecting dual-mode), and the full API discovery pipeline (docs parsing, active endpoint probing, peek-api network capture).
+
 ## Related
 
 - [peek-api](https://github.com/alexknowshtml/peek-api) -- Discover internal APIs from any website by monitoring network traffic
