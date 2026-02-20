@@ -1,59 +1,74 @@
 # api2cli
 
-Patterns for building Node.js CLI tools that know their audience. Built with [Commander.js](https://github.com/tj/commander.js).
+A Claude Code skill that generates working Node.js CLIs from any API. Point it at API docs, a live URL, or a [peek-api](https://github.com/alexknowshtml/peek-api) capture and get a dual-mode Commander.js CLI that works for both humans and AI agents.
 
-## The Problem
+## What It Does
 
-Most CLIs are built for one audience. Human users get pretty output but scripts can't parse it. Agent-consumed tools return raw JSON but are painful to use in a terminal. The fix is usually a `--json` flag bolted on as an afterthought.
+1. **Discovers endpoints** from API docs pages, live probing, or peek-api network captures
+2. **Builds an endpoint catalog** with auth, pagination, and rate limit info
+3. **Generates a CLI** with one subcommand per endpoint, a full-featured API client, and dual-mode output (human-readable in terminal, JSON envelope when piped)
 
-**api2cli** starts with a different question: **who's using this CLI?**
+## Install
 
-## Three Modes
+Copy the `skill/` folder into your Claude Code project:
 
-**Human** -- Readable output, color, tables, spinners. `--json` flag for scripts.
+```bash
+# Clone this repo
+git clone https://github.com/alexknowshtml/api2cli.git
 
-**Agent** -- JSON-only with a standard envelope. Every response includes `next_actions` (HATEOAS-style), errors include a `fix` field, and the root command self-documents the full command tree. Output is context-safe (truncated with pointers to full data).
+# Copy the skill into your project
+cp -r api2cli/skill/ /path/to/your/project/.claude/skills/api2cli/
+```
 
-**Both** -- Auto-detects via `process.stdout.isTTY`. Terminal users get formatted output, piped consumers get the JSON envelope. Same data, different rendering, no flags needed.
+## Usage
+
+In Claude Code, tell Claude what API you want to wrap:
+
+```
+"Build me a CLI for the Stripe API"
+"Generate a CLI from these docs: https://docs.example.com/api"
+"Turn this peek-api capture into a CLI"
+```
+
+Claude will:
+1. Ask what API and how to access it
+2. Discover endpoints (parses docs, probes live endpoints, reads peek-api captures)
+3. Show you the endpoint catalog for review
+4. Generate the CLI -- you choose: scaffold into your project or standalone
+5. Test that it works
+
+## What Gets Generated
+
+A Commander.js CLI with:
+- **Dual-mode output** -- human-readable in terminal, JSON with `next_actions` when piped
+- **Self-documenting root** -- run with no args to see all commands
+- **Full API client** -- auth, pagination, retry with backoff, rate limiting, caching
+- **One subcommand per endpoint** -- `mycli customers list`, `mycli customers get <id>`
+- **Error handling** -- agent-friendly errors with `fix` suggestions
+
+## Discovery Methods
+
+| Method | Best For |
+|--------|----------|
+| **Docs parsing** | Public APIs with documentation pages |
+| **Active probing** | APIs where you have a base URL and credentials |
+| **peek-api capture** | Sites where you need to sniff network traffic to find endpoints |
 
 ## What's Inside
 
 ```
 skill/
-  SKILL.md                             # Full guide with code examples for all three modes
+  SKILL.md                                # Main skill instructions
   references/
-    commander-patterns.md              # Advanced Commander.js patterns (nested commands, prompts, color, config)
-    api-client-template.md             # REST API client boilerplate (pagination, retry, caching, rate limiting)
-    agent-first-patterns.md            # Deep dive into agent-first CLI design (HATEOAS, envelopes, context protection)
+    discovery-strategies.md               # Endpoint discovery patterns and probing techniques
+    api-client-template.md                # API client with pagination, retry, rate limiting, caching
+    agent-first-patterns.md               # Agent JSON envelope, HATEOAS, context-safe output
+    commander-patterns.md                 # Commander.js advanced patterns
 ```
 
-## Using as a Claude Code Skill
+## Related
 
-Copy the `skill/` folder into your Claude Code skills directory:
-
-```bash
-cp -r skill/ /path/to/your/project/.claude/skills/cli-builder/
-```
-
-Claude Code will automatically pick up the skill and apply these patterns when building CLI tools.
-
-## The Agent JSON Envelope
-
-The key pattern for agent-consumed CLIs:
-
-```typescript
-// Success
-{ ok: true, command: "mycli list", result: { items: [...], count: 15 }, next_actions: [...] }
-
-// Error
-{ ok: false, command: "mycli list", error: { message: "...", code: "FETCH_FAILED" }, fix: "Check API key", next_actions: [...] }
-```
-
-Every response tells the agent what happened and what it can do next. Errors suggest how to fix them. Large outputs are truncated with a path to the full file.
-
-## Inspiration
-
-- [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md)
+- [peek-api](https://github.com/alexknowshtml/peek-api) -- Discover internal APIs from any website by monitoring network traffic
 
 ## License
 

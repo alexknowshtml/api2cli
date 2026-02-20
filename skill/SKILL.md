@@ -1,303 +1,253 @@
 ---
-name: cli-builder
-description: Build robust Node.js CLI tools with Commander.js patterns. Audience-aware -- optimizes for humans, agents, or both.
+name: api2cli
+description: Generate a working CLI from any API. Point it at API docs, a live URL, or a peek-api capture and get a dual-mode Commander.js CLI (human + agent output). Use when user wants to wrap an API in a CLI, generate a CLI from API docs, turn an API into a command-line tool, or scaffold a CLI from discovered endpoints.
 ---
 
-# CLI Builder
+# api2cli
 
-Build command-line tools in Node.js using Commander.js with consistent patterns.
+Generate a working Node.js CLI from any API. Discovers endpoints, then scaffolds a dual-mode Commander.js CLI with a full-featured API client.
 
-## First Question: Who's Using This CLI?
+## Workflow
 
-Before writing any CLI, determine the audience:
+1. **Identify the API** -- user provides a docs URL, a live API base URL, or a peek-api capture
+2. **Discover endpoints** -- parse docs, probe the API, or read a peek-api catalog
+3. **Build endpoint catalog** -- normalize all discovered endpoints into a standard format
+4. **Generate CLI** -- scaffold Commander.js CLI from the catalog
+5. **User chooses destination** -- scaffold into current project or create standalone project
 
-- **Human** -- Terminal users who read output, appreciate color and formatting
-- **Agent** -- AI agents parsing structured output to decide next steps
-- **Both** -- Auto-detects context and renders accordingly
+## Step 1: Identify the API
 
-This choice drives output format, error handling, and discoverability patterns.
+Ask the user:
+- "What API do you want to wrap? Share a docs URL, a base URL, or point me at a peek-api capture."
 
----
+Determine which discovery paths to use based on what they provide:
 
-## Quick Start: Human CLI
+| Input | Discovery Path |
+|-------|---------------|
+| Docs URL (e.g., `https://docs.stripe.com/api`) | Docs parsing + active probing |
+| Base URL (e.g., `https://api.example.com/v1`) | Active probing |
+| peek-api capture dir (e.g., `./peek-api-linkedin/`) | Read existing catalog |
+| Live website URL | Suggest running peek-api first, then active probing |
 
-For tools people run directly in a terminal.
+Also ask:
+- "What auth does this API use?" (API key, Bearer token, cookies, OAuth, none)
+- "Do you want this CLI in your current project or as a standalone project?"
 
-```typescript
-#!/usr/bin/env npx tsx
-import { Command } from 'commander';
+## Step 2: Discover Endpoints
 
-const program = new Command();
+Use all applicable discovery paths. Combine results into a single catalog.
 
-program
-  .name('mycli')
-  .description('What this CLI does')
-  .version('1.0.0');
+### Path A: Docs Parsing
 
-program
-  .command('list')
-  .description('List items')
-  .option('-j, --json', 'Output as JSON')
-  .action(async (options) => {
-    const items = await fetchItems();
-    if (options.json) {
-      console.log(JSON.stringify(items, null, 2));
-    } else {
-      items.forEach(i => console.log(`${i.id}: ${i.name}`));
-    }
-  });
+1. Fetch the docs URL with WebFetch
+2. Extract endpoint information: method, path, description, parameters, request/response examples
+3. Look for pagination patterns, auth requirements, rate limit info
+4. Follow links to sub-pages for individual endpoint docs if the main page is an index
 
-program.parse();
+### Path B: Active Probing
+
+1. Check well-known paths for API specs:
+   - `/.well-known/openapi.json`, `/.well-known/openapi.yaml`
+   - `/openapi.json`, `/openapi.yaml`, `/swagger.json`, `/swagger.yaml`
+   - `/api-docs`, `/docs`, `/api/docs`
+   - `/graphql` (with introspection query)
+2. Try `OPTIONS` on the base URL and common resource paths
+3. Probe common REST patterns: `/api/v1/`, `/api/v2/`, `/v1/`, `/v2/`
+4. For each discovered resource, try standard CRUD: `GET /resources`, `GET /resources/:id`, `POST /resources`, etc.
+5. Parse response shapes to understand data models
+6. Check response headers for rate limit info (`X-RateLimit-*`, `Retry-After`)
+7. Check for pagination patterns in responses (`next`, `cursor`, `page`, `offset`)
+
+See `references/discovery-strategies.md` for detailed probing patterns.
+
+### Path C: peek-api Capture
+
+1. Read the capture directory: `endpoints.json`, `auth.json`, `CAPTURE.md`
+2. Parse endpoints into the standard catalog format
+3. Extract auth headers and cookies from `auth.json`
+
+If peek-api is not installed or no capture exists, tell the user:
+```
+To capture endpoints from a live site, install peek-api:
+  git clone https://github.com/alexknowshtml/peek-api
+  cd peek-api && npm install
+  node bin/cli.js https://example.com
 ```
 
-**Human CLI principles:**
-1. Human-readable output by default, `--json` flag for structured output
-2. Color, tables, spinners, progress bars are welcome
-3. Interactive prompts for complex operations
-4. `--help` for discoverability
+## Step 3: Build Endpoint Catalog
 
-## Quick Start: Agent CLI
-
-For tools consumed by AI agents or automated pipelines.
+Normalize all discovered endpoints into this format:
 
 ```typescript
-#!/usr/bin/env npx tsx
-import { Command } from 'commander';
+interface EndpointCatalog {
+  service: string;           // e.g., "stripe", "nexudus"
+  baseUrl: string;
+  auth: {
+    type: 'api-key' | 'bearer' | 'cookies' | 'oauth' | 'none';
+    headerName?: string;     // e.g., "Authorization", "X-API-Key"
+    envVar: string;          // e.g., "STRIPE_API_KEY"
+  };
+  pagination?: {
+    style: 'cursor' | 'offset' | 'page' | 'link-header';
+    paramName: string;       // e.g., "starting_after", "offset", "page"
+    responseField: string;   // e.g., "has_more", "next", "next_page_url"
+  };
+  rateLimit?: {
+    requests: number;
+    window: string;          // e.g., "1m", "1h"
+  };
+  resources: ResourceGroup[];
+}
 
-const program = new Command();
+interface ResourceGroup {
+  name: string;              // e.g., "customers", "invoices"
+  description: string;
+  endpoints: Endpoint[];
+}
 
-program
-  .name('mycli')
-  .description('What this CLI does')
-  .version('1.0.0');
+interface Endpoint {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  path: string;              // e.g., "/v1/customers/:id"
+  description: string;
+  parameters: Parameter[];
+  requestBody?: object;      // JSON schema or example
+  responseExample?: object;
+}
 
-// Root command returns full command tree (self-documenting)
-program.action(() => {
-  console.log(JSON.stringify({
-    ok: true,
-    command: 'mycli',
-    result: {
-      description: 'What this CLI does',
-      version: '1.0.0',
-      commands: [
-        { command: 'mycli list', description: 'List items' },
-        { command: 'mycli list --status=active', description: 'List active items' },
-      ]
-    },
-    next_actions: [
-      { command: 'mycli list', description: 'List all items' },
-      { command: 'mycli health', description: 'Check system health' },
-    ]
-  }));
-});
-
-program
-  .command('list')
-  .description('List items')
-  .option('-s, --status <status>', 'Filter by status')
-  .action(async (options) => {
-    try {
-      const items = await fetchItems(options.status);
-      console.log(JSON.stringify({
-        ok: true,
-        command: 'mycli list',
-        result: { items, count: items.length },
-        next_actions: [
-          { command: `mycli show ${items[0]?.id}`, description: 'View first item details' },
-          { command: 'mycli list --status=active', description: 'Filter to active items' },
-        ]
-      }));
-    } catch (err) {
-      console.log(JSON.stringify({
-        ok: false,
-        command: 'mycli list',
-        error: { message: err.message, code: 'FETCH_FAILED' },
-        fix: 'Check that the API is running and MYSERVICE_API_KEY is set',
-        next_actions: [
-          { command: 'mycli health', description: 'Check API connectivity' },
-        ]
-      }));
-      process.exit(1);
-    }
-  });
-
-program.parse();
+interface Parameter {
+  name: string;
+  in: 'path' | 'query' | 'header';
+  required: boolean;
+  type: string;
+  description: string;
+}
 ```
 
-**Agent CLI principles:**
-1. **JSON always** -- Every command returns a JSON envelope. No plain text, no color codes, no tables
-2. **HATEOAS** -- Every response includes `next_actions` telling the agent what to do next
-3. **Self-documenting root** -- Running the command with no args returns the full command tree
-4. **Errors suggest fixes** -- Error responses include a `fix` field with actionable guidance
-5. **Context-protecting output** -- Truncate large results, include file paths to full data
+Present the catalog to the user for review before generating:
+```
+Found 24 endpoints across 5 resources:
+  customers (6 endpoints): list, get, create, update, delete, search
+  invoices (5 endpoints): list, get, create, send, void
+  ...
+Ready to generate the CLI?
+```
 
-## Quick Start: Both (Dual-Mode)
+## Step 4: Generate CLI
 
-For tools used by both humans and agents. Auto-detects based on terminal context.
+Generate a dual-mode CLI using Commander.js. The CLI auto-detects human vs agent output via `process.stdout.isTTY`.
 
+### File Structure
+
+**In-project scaffold:**
+```
+scripts/
+  {service}.ts                    # Entry point with shebang
+  {service}/
+    lib/
+      client.ts                   # API client (auth, pagination, retry, caching)
+      envelope.ts                 # Agent JSON envelope helpers
+    commands/
+      {resource}.ts               # One file per resource group
+```
+
+**Standalone project:**
+```
+{service}-cli/
+  package.json
+  tsconfig.json
+  bin/
+    {service}.ts                  # Entry point with shebang
+  src/
+    lib/
+      client.ts
+      envelope.ts
+    commands/
+      {resource}.ts
+```
+
+### Code Generation Patterns
+
+See these references for the patterns to apply during generation:
+
+- `references/api-client-template.md` -- API client class with pagination, retry, rate limiting, caching
+- `references/agent-first-patterns.md` -- JSON envelope, HATEOAS next_actions, context-safe output, error fix suggestions
+- `references/commander-patterns.md` -- Commander.js subcommands, global options, interactive prompts, colored output
+
+### Key Generation Rules
+
+**Entry point (`{service}.ts`):**
+- Shebang: `#!/usr/bin/env npx tsx`
+- Self-documenting root command (no args → prints full command tree as JSON)
+- Global options: `--json` (force JSON output), `--verbose`, `--config <path>`
+
+**API client (`lib/client.ts`):**
+- Constructor takes base URL + auth config
+- Auth from env var (name based on `catalog.auth.envVar`)
+- Built-in pagination matching the API's pattern
+- Retry with exponential backoff for 5xx and 429 errors
+- Rate limiting based on discovered limits
+- Optional response caching
+
+**Envelope helpers (`lib/envelope.ts`):**
 ```typescript
-#!/usr/bin/env npx tsx
-import { Command } from 'commander';
-
-// Detect if output is being piped/consumed by another program
 const isAgent = !process.stdout.isTTY;
 
-// Standard envelope for agent output
-function respond(data: { command: string; result: any; next_actions?: any[] }) {
+function respond(command: string, result: any, nextActions: Action[] = []) {
   if (isAgent) {
-    console.log(JSON.stringify({ ok: true, ...data }));
+    console.log(JSON.stringify({ ok: true, command, result, next_actions: nextActions }));
   } else {
-    // Human-friendly rendering -- customize per command
-    return data.result;
+    return result; // caller handles human rendering
   }
 }
 
-function respondError(data: { command: string; error: string; code: string; fix: string; next_actions?: any[] }) {
+function respondError(command: string, message: string, code: string, fix: string, nextActions: Action[] = []) {
   if (isAgent) {
-    console.log(JSON.stringify({
-      ok: false,
-      command: data.command,
-      error: { message: data.error, code: data.code },
-      fix: data.fix,
-      next_actions: data.next_actions ?? []
-    }));
+    console.log(JSON.stringify({ ok: false, command, error: { message, code }, fix, next_actions: nextActions }));
   } else {
-    console.error(`Error: ${data.error}`);
-    console.error(`Fix: ${data.fix}`);
+    console.error(`Error: ${message}`);
+    console.error(`Fix: ${fix}`);
   }
   process.exit(1);
 }
-
-const program = new Command();
-program.name('mycli').description('What this CLI does').version('1.0.0');
-
-program
-  .command('list')
-  .description('List items')
-  .action(async () => {
-    const items = await fetchItems();
-
-    const result = respond({
-      command: 'mycli list',
-      result: { items, count: items.length },
-      next_actions: [
-        { command: `mycli show ${items[0]?.id}`, description: 'View first item' },
-      ]
-    });
-
-    // Human rendering (only runs in TTY mode)
-    if (result) {
-      items.forEach(i => console.log(`${i.id}: ${i.name}`));
-    }
-  });
-
-program.parse();
 ```
 
-**Dual-mode principles:**
-1. `process.stdout.isTTY` determines rendering -- no flags needed
-2. Agent callers get the JSON envelope with `next_actions`
-3. Terminal users get readable, formatted output
-4. Error handling covers both paths
-5. Both audiences get the same underlying data
+**Command files (`commands/{resource}.ts`):**
+- One file per resource group
+- Each endpoint becomes a subcommand: `mycli customers list`, `mycli customers get <id>`
+- `list` commands: support `--limit`, `--offset`/`--cursor`, `--status` (if filterable)
+- `get` commands: take ID as argument
+- `create`/`update` commands: accept `--data <json>` or individual `--field` flags
+- Every command includes contextual `next_actions` for agent mode
+- Errors include `fix` suggestions
 
----
+**Standalone project extras:**
+- `package.json` with `commander`, `tsx` as dependencies, `bin` field pointing to entry
+- `tsconfig.json` for TypeScript
+- `.env.example` with the required env var
 
-## Core Principles (All Audiences)
+## Step 5: Post-Generation
 
-1. **Shebang + tsx** -- Use `#!/usr/bin/env npx tsx` for direct execution without build step
-2. **Subcommands** -- Group related operations: `cli inbox list`, `cli inbox search`
-3. **Fail fast** -- Validate config/auth early, exit with clear error messages
+After generating, do the following:
 
-## Agent JSON Envelope
-
-Standard response format for agent-consumed CLIs:
-
-```typescript
-// Success
-{
-  ok: true,
-  command: string,         // The command that was run
-  result: object,          // Command-specific payload
-  next_actions: Array<{    // What the agent can do next
-    command: string,
-    description: string
-  }>
-}
-
-// Error
-{
-  ok: false,
-  command: string,
-  error: {
-    message: string,
-    code: string           // Machine-readable error code
-  },
-  fix: string,             // Plain language: how to resolve this
-  next_actions: Array<{
-    command: string,
-    description: string
-  }>
-}
-```
-
-**Context-protecting output rules (agent mode):**
-- Truncate lists beyond 50 items by default
-- Include total count and a file path to full results when truncated
-- Never dump unbounded logs or raw API responses
-
-## Anti-Patterns
-
-**Human CLIs:**
-- Don't require `--json` to get structured data when the primary consumer is a script
-- Don't output only JSON with no human formatting
-
-**Agent CLIs:**
-- Don't output plain text, ANSI colors, or table formatting
-- Don't require `--help` reading for discoverability -- root command shows everything
-- Don't output errors without a `fix` suggestion
-- Don't dump unbounded output -- truncate and point to full file
-
-**Both CLIs:**
-- Don't force users to pass `--json` or `--human` flags -- detect automatically
-- Don't have divergent behavior between modes (same data, different rendering)
-
-## Naming Conventions
-
-- **Commands:** lowercase nouns/verbs, no hyphens (`send`, `status`, `health`)
-- **Subcommands:** natural hierarchy (`mycli inbox list`, `mycli memory search`)
-- **Flags:** `--kebab-case` (`--max-results`, `--follow`)
-- **Short flags:** common options (`-s` for `--status`, `-f` for `--follow`)
-
-## File Structure
+1. **Verify the CLI runs:** Execute with no args, confirm the self-documenting root works
+2. **Test one endpoint:** Pick a simple GET endpoint, run it, verify output
+3. **Tell the user what to do next:**
 
 ```
-scripts/
-  mycli.ts           # Main entry point
-  mycli/
-    commands/        # Subcommand implementations
-    lib/             # Shared utilities (api client, formatters, envelope helpers)
+CLI generated at scripts/{service}.ts
+
+To use it:
+  npx tsx scripts/{service}.ts                    # See all commands
+  npx tsx scripts/{service}.ts customers list     # List customers
+  {SERVICE}_API_KEY=xxx npx tsx scripts/{service}.ts customers get abc123
+
+For agent consumption (pipe to get JSON):
+  npx tsx scripts/{service}.ts customers list | cat
 ```
-
-## Checklist for New Commands
-
-- [ ] Audience identified (human / agent / both)
-- [ ] Returns appropriate format for audience
-- [ ] Agent mode: JSON envelope with `next_actions`
-- [ ] Agent mode: errors include `fix` field
-- [ ] Agent mode: root command lists full command tree
-- [ ] Agent mode: output is context-safe (truncated if large)
-- [ ] Human mode: readable formatting with optional `--json`
-- [ ] Dual mode: auto-detects via `isTTY`
-- [ ] Works when piped
-- [ ] Builds/runs without compilation step
 
 ## Reference Files
 
-- `references/commander-patterns.md` -- Advanced Commander.js patterns (human CLIs)
-- `references/api-client-template.md` -- REST API client boilerplate
-- `references/agent-first-patterns.md` -- Agent-first CLI design deep dive
-
-## Inspiration
-
-- Joel Hooks' agent-first CLI design: [joelclaw SKILL.md](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md)
+- `references/discovery-strategies.md` -- Detailed probing patterns, well-known paths, GraphQL introspection, response parsing
+- `references/api-client-template.md` -- Full API client class with pagination, retry, rate limiting, caching
+- `references/agent-first-patterns.md` -- Agent JSON envelope, HATEOAS, context-safe output, error handling
+- `references/commander-patterns.md` -- Commander.js subcommands, nested commands, interactive prompts, colored output, config files, testing
