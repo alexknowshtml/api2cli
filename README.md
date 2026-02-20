@@ -68,9 +68,9 @@ skill/
 
 ## Credits
 
-The agent-first CLI output patterns (JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, `fix` suggestions on errors) were inspired by [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md).
+The audience-aware CLI patterns, API discovery pipeline, and CLI generation approach are by [Alex Hillman](https://github.com/alexknowshtml) -- built from years of wrapping APIs in CLIs and figuring out that the first question should always be "who's using this?" The human-first and dual-mode routing, the docs parsing, active endpoint probing, and [peek-api](https://github.com/alexknowshtml/peek-api) network capture all came from that work.
 
-The audience-aware routing (human-first, agent-first, or auto-detecting dual-mode), the CLI generation patterns, and the full API discovery pipeline (docs parsing, active endpoint probing, peek-api network capture) are by [Alex Hillman](https://github.com/alexknowshtml).
+[Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md) contributed the agent-side output patterns: the JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, and `fix` suggestions on errors.
 
 ## Related
 
