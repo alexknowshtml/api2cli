@@ -68,9 +68,9 @@ skill/
 
 ## Credits
 
-The agent-first CLI patterns (JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, `fix` suggestions on errors) are based on [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md).
+The agent-first CLI output patterns (JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, `fix` suggestions on errors) were inspired by [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md).
 
-api2cli adds audience routing (generate for humans, agents, or auto-detecting dual-mode), and the full API discovery pipeline (docs parsing, active endpoint probing, peek-api network capture).
+The audience-aware routing (human-first, agent-first, or auto-detecting dual-mode), the CLI generation patterns, and the full API discovery pipeline (docs parsing, active endpoint probing, peek-api network capture) are by [Alex Hillman](https://github.com/alexknowshtml).
 
 ## Related
 
