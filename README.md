@@ -1,6 +1,8 @@
 # api2cli
 
-A Claude Code skill that turns any API into a working CLI, then wraps that CLI in a skill. Point it at API docs, a live URL, or a [peek-api](https://github.com/alexknowshtml/peek-api) capture and get a dual-mode Commander.js CLI plus a ready-to-use Claude Code skill -- so any future Claude session can pick it up and use it without reading the code.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that turns any API into a working CLI, then wraps that CLI in a skill. Point it at API docs, a live URL, or a [peek-api](https://github.com/alexknowshtml/peek-api) capture and get a dual-mode Commander.js CLI plus a ready-to-use Claude Code skill -- so any future Claude session can pick it up and use it without reading the code.
+
+> **Requires [Claude Code](https://docs.anthropic.com/en/docs/claude-code)** -- this is a skill, not a standalone tool. Claude handles the discovery, generation, and wiring.
 
 ## What It Does
 
@@ -8,6 +10,93 @@ A Claude Code skill that turns any API into a working CLI, then wraps that CLI i
 2. **Builds an endpoint catalog** with auth, pagination, and rate limit info
 3. **Generates a CLI** with one subcommand per endpoint, a full-featured API client, and dual-mode output (human-readable in terminal, JSON envelope when piped)
 4. **Generates a skill** -- a SKILL.md that teaches Claude how to use the CLI, with commands, examples, and common workflows
+
+## Example: Resend API
+
+Here's what it looks like when you point api2cli at the [Resend](https://resend.com) email API.
+
+**You say:**
+```
+Build me a CLI for the Resend API. Here are the docs: https://resend.com/docs/api-reference
+```
+
+**Claude discovers 15 endpoints across 5 resources:**
+```
+Found 15 endpoints across 5 resources:
+  emails (3 endpoints): send, get, batch
+  domains (4 endpoints): list, get, create, delete
+  api-keys (3 endpoints): list, create, delete
+  audiences (3 endpoints): list, get, create
+  contacts (2 endpoints): list, create
+
+Ready to generate the CLI?
+```
+
+**Claude generates a CLI at `scripts/resend.ts`:**
+```bash
+# See all commands
+$ npx tsx scripts/resend.ts
+{
+  "ok": true,
+  "command": "resend",
+  "result": {
+    "description": "Resend email API CLI",
+    "commands": [
+      { "command": "resend emails send", "description": "Send an email" },
+      { "command": "resend emails get <id>", "description": "Get email by ID" },
+      { "command": "resend domains list", "description": "List all domains" },
+      ...
+    ]
+  }
+}
+
+# Send an email
+$ npx tsx scripts/resend.ts emails send \
+    --to user@example.com \
+    --subject "Hello" \
+    --html "<p>Hi there</p>"
+
+# List domains (human-readable in terminal)
+$ npx tsx scripts/resend.ts domains list
+ID          Domain              Status
+re_abc123   example.com         verified
+re_def456   staging.example.com pending
+
+# Same command piped to an agent (auto-detects, returns JSON)
+$ npx tsx scripts/resend.ts domains list | cat
+{
+  "ok": true,
+  "command": "resend domains list",
+  "result": { "domains": [...], "count": 2 },
+  "next_actions": [
+    { "command": "resend domains get re_abc123", "description": "View domain details" },
+    { "command": "resend emails send --from noreply@example.com", "description": "Send from verified domain" }
+  ]
+}
+```
+
+**Claude also generates a skill at `.claude/skills/resend/SKILL.md`:**
+```markdown
+---
+name: resend
+description: Interact with the Resend email API via CLI. Use when user wants to
+  send emails, manage domains, create API keys, manage audiences and contacts.
+  Commands: resend emails send, resend domains list, resend contacts create.
+---
+
+# Resend CLI
+
+## Setup
+export RESEND_API_KEY=re_your_key_here
+
+## Commands
+### emails send --to <email> --subject <text> --html <html>
+### domains list | get <id> | create --name <domain>
+### contacts list --audience-id <id> | create --email <email>
+...
+```
+
+From here, any Claude session in your project can send emails, manage domains, and work with contacts -- without knowing anything about the Resend API.
 
 ## Install
 
@@ -26,7 +115,7 @@ cp -r api2cli/skill/ /path/to/your/project/.claude/skills/api2cli/
 In Claude Code, tell Claude what API you want to wrap:
 
 ```
-"Build me a CLI for the Stripe API"
+"Build me a CLI for the Resend API"
 "Generate a CLI from these docs: https://docs.example.com/api"
 "Turn this peek-api capture into a CLI"
 ```
