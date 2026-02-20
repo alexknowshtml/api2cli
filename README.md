@@ -68,7 +68,7 @@ skill/
 
 ## Credits
 
-The audience-aware CLI patterns, API discovery pipeline, and generation approach came from years of wrapping APIs in CLIs and figuring out that the first question should always be "who's using this?" The human-first and dual-mode routing, the docs parsing, active endpoint probing, and [peek-api](https://github.com/alexknowshtml/peek-api) network capture all came from that work.
+This came from a pattern of wanting to give my AI agent access to apps and discovering it loved working with CLIs. I wanted an easy way to turn any API into a CLI, then wrap that CLI in a skill. The audience routing (human-first, agent-first, dual-mode), the API discovery pipeline ([peek-api](https://github.com/alexknowshtml/peek-api), docs parsing, active probing), and the generation approach all came from that.
 
 The agent-side output patterns -- JSON envelope, HATEOAS-style `next_actions`, self-documenting root commands, and `fix` suggestions on errors -- were inspired by [Joel Hooks' agent-first CLI design](https://github.com/joelhooks/joelclaw/blob/main/.agents/skills/cli-design/SKILL.md).
 
